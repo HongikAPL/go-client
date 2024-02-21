@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  go-server:
+    container_name: go-client
+    build:
+      context: .
+    ports:
+      - "8081:8081"
+    restart: always
+        
