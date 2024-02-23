@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os/exec"
 
 	"github.com/joho/godotenv"
 	"github.com/parnurzeal/gorequest"
@@ -93,6 +94,15 @@ func getNfsUrl(accessToken string) (string, error) {
 	return verifyDataResponse["nfsUrl"].(string), nil
 }
 
+func mountNfs(nfsUrl string) error {
+	cmd := exec.Command("sudo mount", nfsUrl, "/mnt/nfs_clientshare")
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("Error mounting NFS: %v", err)
+	}
+	return nil
+}
+
 func main() {
 	loadEnv()
 
@@ -102,6 +112,16 @@ func main() {
 	}
 
 	nfsUrl, err := getNfsUrl(accessToken)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Printf("NFS URL: %s\n", nfsUrl)
+
+	err = mountNfs(nfsUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("NFS mounted successfully!")
 }
