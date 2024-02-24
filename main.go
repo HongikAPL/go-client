@@ -19,7 +19,7 @@ type VerifyData struct {
 }
 
 const (
-	baseURL = "http://localhost:8080/api/auth"
+	baseURL = "http://15.164.217.15:8080/api/auth"
 )
 
 func loadEnv() {
@@ -95,7 +95,8 @@ func getNfsUrl(accessToken string) (string, error) {
 }
 
 func mountNfs(nfsUrl string) error {
-	cmd := exec.Command("sudo mount", nfsUrl, "/mnt/nfs_clientshare")
+	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mount %s", nfsUrl)
+	cmd := exec.Command("/bin/sh", "-c", commands)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("Error mounting NFS: %v", err)
