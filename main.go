@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"github.com/parnurzeal/gorequest"
@@ -95,12 +98,40 @@ func getNfsUrl(accessToken string) (string, error) {
 }
 
 func mountNfs(nfsUrl string) error {
-	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mount %s /mnt", nfsUrl)
+	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s /nfs_shared_data", nfsUrl)
 	cmd := exec.Command("/bin/sh", "-c", commands)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("Error mounting NFS: %v", err)
 	}
+	return nil
+}
+
+func readDatasInFolder() error {
+	currentPath, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	folderPath := filepath.Join(currentPath, "nfs_shared_data")
+	files, err := ioutil.ReadDir(folderPath)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		filePath := filepath.Join(folderPath, file.Name())
+		data, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			log.Println("Error reading file", filePath, err)
+			continue
+		}
+
+		fmt.Println("File :", filePath)
+		fmt.Println(string(data))
+		fmt.Println("----------------")
+	}
+
 	return nil
 }
 
@@ -125,4 +156,11 @@ func main() {
 	}
 
 	fmt.Println("NFS mounted successfully!")
+
+	err = readDatasInFolder()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Read Data successfully!")
 }
