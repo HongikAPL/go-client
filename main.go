@@ -98,7 +98,7 @@ func getNfsUrl(accessToken string) (string, error) {
 }
 
 func mountNfs(nfsUrl string) error {
-	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s /nfs_shared_data", nfsUrl)
+	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s ./nfs_shared_data", nfsUrl)
 	cmd := exec.Command("/bin/sh", "-c", commands)
 	err := cmd.Run()
 	if err != nil {
