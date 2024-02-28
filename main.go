@@ -15,6 +15,8 @@ import (
 
 type SigninData struct {
 	AccessToken string `json:"accessToken"`
+	Opt         string `json:"otp"`
+	Key         []byte `json:"key"`
 }
 
 type VerifyData struct {
@@ -22,7 +24,7 @@ type VerifyData struct {
 }
 
 const (
-	baseURL = "http://15.164.217.15:8080/api/auth"
+	baseURL = "http://localhost:8080/api/auth"
 )
 
 func loadEnv() {
@@ -32,7 +34,7 @@ func loadEnv() {
 	}
 }
 
-func getAccessToken() (string, error) {
+func getAccessToken() (string, string, []byte, error) {
 	signinURL := baseURL + "/signin"
 	signinData := map[string]interface{}{
 		"username": "test",
@@ -62,8 +64,65 @@ func getAccessToken() (string, error) {
 		log.Fatal("Invalid Signin response format")
 	}
 
-	return signinDataResponse["accessToken"].(string), nil
+	accessToken, ok := signinDataResponse["accessToken"].(string)
+	if !ok {
+		log.Fatal("Invalid Signin response format - accessToken not found")
+	}
+
+	otp, ok := signinDataResponse["otp"].(string)
+	if !ok {
+		log.Fatal("Invalid Signin response format - otp not found")
+	}
+
+	key, ok := signinDataResponse["key"].(string)
+	if !ok {
+		log.Fatal("Invalid Signin response format - key not found")
+	}
+
+	return accessToken, otp, []byte(key), nil
 }
+
+// func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
+// 	block, err := aes.NewCipher(key)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	iv := ciphertext[:aes.BlockSize]
+// 	data := ciphertext[aes.BlockSize:]
+
+// 	stream := cipher.NewCFBDecrypter(block, iv)
+// 	stream.XORKeyStream(data, data)
+
+// 	return data, nil
+// }
+
+// func decryptFilesInFolder(key []byte) error {
+// 	files, err := ioutil.ReadDir(folderPath)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	for _, file := range files {
+// 		filePath := filepath.Join(folderPath, file.Name())
+// 		data, err := ioutil.ReadFile(filePath)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		decryptedData, err := decrypt(data, key)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		err = ioutil.WriteFile(filePath, decryptedData, os.ModePerm)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }
 
 func getNfsUrl(accessToken string) (string, error) {
 	verifyURL := baseURL + "/verify"
@@ -138,7 +197,7 @@ func readDatasInFolder() error {
 func main() {
 	loadEnv()
 
-	accessToken, err := getAccessToken()
+	accessToken, otp, key, err := getAccessToken()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -154,6 +213,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// err = decryptFilesInFolder(key)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	fmt.Println("NFS mounted successfully!")
 
