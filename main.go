@@ -13,13 +13,12 @@ import (
 	"github.com/parnurzeal/gorequest"
 )
 
-type SigninData struct {
-	AccessToken string `json:"accessToken"`
-	Opt         string `json:"otp"`
-	Key         []byte `json:"key"`
+type SigninResponse struct {
+	Seed int64  `json:seed`
+	Key  []byte `json:"key"`
 }
 
-type VerifyData struct {
+type VerifyResponse struct {
 	NfsUrl string `json:"nfsUrl"`
 }
 
@@ -34,16 +33,16 @@ func loadEnv() {
 	}
 }
 
-func getAccessToken() (string, string, []byte, error) {
+func getSeed() (int64, []byte, error) {
 	signinURL := baseURL + "/signin"
-	signinData := map[string]interface{}{
+	signinRequest := map[string]interface{}{
 		"username": "test",
 		"password": "test",
 	}
 
 	resp, body, errs := gorequest.New().
 		Post(signinURL).
-		Send(signinData).
+		Send(signinRequest).
 		End()
 
 	if errs != nil {
@@ -59,27 +58,22 @@ func getAccessToken() (string, string, []byte, error) {
 		log.Fatalf("Error parsing Signin response: %v", err)
 	}
 
-	signinDataResponse, ok := signinResponse["data"].(map[string]interface{})
+	signinResponse, ok := signinResponse["data"].(map[string]interface{})
 	if !ok {
 		log.Fatal("Invalid Signin response format")
 	}
 
-	accessToken, ok := signinDataResponse["accessToken"].(string)
+	seed, ok := signinResponse["seed"].(int64)
 	if !ok {
-		log.Fatal("Invalid Signin response format - accessToken not found")
+		log.Fatal("Invalid Signin response format - seed not found")
 	}
 
-	otp, ok := signinDataResponse["otp"].(string)
-	if !ok {
-		log.Fatal("Invalid Signin response format - otp not found")
-	}
-
-	key, ok := signinDataResponse["key"].(string)
+	key, ok := signinResponse["key"].(string)
 	if !ok {
 		log.Fatal("Invalid Signin response format - key not found")
 	}
 
-	return accessToken, otp, []byte(key), nil
+	return seed, []byte(key), nil
 }
 
 // func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
@@ -197,22 +191,24 @@ func readDatasInFolder() error {
 func main() {
 	loadEnv()
 
-	accessToken, otp, key, err := getAccessToken()
+	seed, key, err := getSeed()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	nfsUrl, err := getNfsUrl(accessToken)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fmt.Printf("Seed : %s, Key : %s\n", seed, key)
 
-	fmt.Printf("NFS URL: %s\n", nfsUrl)
+	// nfsUrl, err := getNfsUrl(accessToken)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	err = mountNfs(nfsUrl)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// fmt.Printf("NFS URL: %s\n", nfsUrl)
+
+	// err = mountNfs(nfsUrl)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	// err = decryptFilesInFolder(key)
 	// if err != nil {
