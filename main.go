@@ -1,26 +1,23 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	mrand "math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/parnurzeal/gorequest"
+	"github.com/pquerna/otp/totp"
 )
-
-type SigninResponse struct {
-	Seed int64  `json:seed`
-	Key  []byte `json:"key"`
-}
-
-type VerifyResponse struct {
-	NfsUrl string `json:"nfsUrl"`
-}
 
 const (
 	baseURL = "http://localhost:8080/api/auth"
@@ -33,16 +30,16 @@ func loadEnv() {
 	}
 }
 
-func getSeed() (int64, []byte, error) {
+func generateSeed() (int64, error) {
 	signinURL := baseURL + "/signin"
-	signinRequest := map[string]interface{}{
+	signinRequestBody := map[string]interface{}{
 		"username": "test",
 		"password": "test",
 	}
 
 	resp, body, errs := gorequest.New().
 		Post(signinURL).
-		Send(signinRequest).
+		Send(signinRequestBody).
 		End()
 
 	if errs != nil {
@@ -53,80 +50,103 @@ func getSeed() (int64, []byte, error) {
 		log.Fatalf("Signin request failed with status code: %d", resp.StatusCode)
 	}
 
-	var signinResponse map[string]interface{}
+	var signinResponse struct {
+		Data struct {
+			Seed int64  `json:"seed"`
+			Key  []byte `json:"Key"`
+		} `json:"data"`
+	}
 	if err := json.Unmarshal([]byte(body), &signinResponse); err != nil {
 		log.Fatalf("Error parsing Signin response: %v", err)
 	}
 
-	signinResponse, ok := signinResponse["data"].(map[string]interface{})
-	if !ok {
-		log.Fatal("Invalid Signin response format")
-	}
+	seed := signinResponse.Data.Seed
+	key := signinResponse.Data.Key
 
-	seed, ok := signinResponse["seed"].(int64)
-	if !ok {
-		log.Fatal("Invalid Signin response format - seed not found")
-	}
+	fmt.Println("seed :", seed)
+	fmt.Println("key :", key)
 
-	key, ok := signinResponse["key"].(string)
-	if !ok {
-		log.Fatal("Invalid Signin response format - key not found")
-	}
-
-	return seed, []byte(key), nil
+	return int64(seed), nil
 }
 
-// func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
-// 	block, err := aes.NewCipher(key)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func generateOTP(seed int64, secretKeyBytes []byte) (string, error) {
+	// otpURL, err := totp.Generate(totp.GenerateOpts{
+	// 	Issuer:      "App Name",
+	// 	AccountName: "test@example.com",
+	// 	Secret:      secretKeyBytes,
+	// })
+	// if err != nil {
+	// 	fmt.Println("Error generating TOTP URL:", err)
+	// 	return "", err
+	// }
 
-// 	iv := ciphertext[:aes.BlockSize]
-// 	data := ciphertext[aes.BlockSize:]
+	// fmt.Println("TOTP URL:\n", otpURL.URL())
+	secretKey := base32.StdEncoding.EncodeToString(secretKeyBytes)
+	secretKey = secretKey[:32]
 
-// 	stream := cipher.NewCFBDecrypter(block, iv)
-// 	stream.XORKeyStream(data, data)
+	fixedTime := time.Unix((time.Now().Unix()/30)*30, 0)
 
-// 	return data, nil
-// }
+	totp, err := totp.GenerateCode(secretKey, fixedTime)
+	if err != nil {
+		fmt.Println("Error generating TOTP code:", err)
+		return "", err
+	}
 
-// func decryptFilesInFolder(key []byte) error {
-// 	files, err := ioutil.ReadDir(folderPath)
-// 	if err != nil {
-// 		return err
-// 	}
+	return totp, nil
+}
 
-// 	for _, file := range files {
-// 		filePath := filepath.Join(folderPath, file.Name())
-// 		data, err := ioutil.ReadFile(filePath)
-// 		if err != nil {
-// 			return err
-// 		}
+func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
 
-// 		decryptedData, err := decrypt(data, key)
-// 		if err != nil {
-// 			return err
-// 		}
+	iv := ciphertext[:aes.BlockSize]
+	data := ciphertext[aes.BlockSize:]
 
-// 		err = ioutil.WriteFile(filePath, decryptedData, os.ModePerm)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(data, data)
 
-// 	return nil
-// }
+	return data, nil
+}
 
-func getNfsUrl(accessToken string) (string, error) {
+func decryptFilesInFolder(key []byte) error {
+	folderPath := "test"
+	files, err := ioutil.ReadDir(folderPath)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		filePath := filepath.Join(folderPath, file.Name())
+		data, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		decryptedData, err := decrypt(data, key)
+		if err != nil {
+			return err
+		}
+
+		err = ioutil.WriteFile(filePath, decryptedData, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getNfsUrl(otp string) (string, error) {
 	verifyURL := baseURL + "/verify"
-	verifyHeader := map[string]string{
-		"Authorization": "Bearer " + accessToken,
+	verifyRequestBody := map[string]interface{}{
+		"otp": otp,
 	}
 
 	resp, body, errs := gorequest.New().
 		Get(verifyURL).
-		Set("Authorization", verifyHeader["Authorization"]).
+		Send(verifyRequestBody).
 		End()
 
 	if errs != nil {
@@ -137,17 +157,19 @@ func getNfsUrl(accessToken string) (string, error) {
 		log.Fatalf("Verify request failed with status code: %d", resp.StatusCode)
 	}
 
-	var verifyResponse map[string]interface{}
-	if err := json.Unmarshal([]byte(body), &verifyResponse); err != nil {
-		log.Fatalf("Error parsing Verify response: %v", err)
+	var verifyResponseDto struct {
+		Data struct {
+			NfsUrl string `json:"nfsUrl"`
+		} `json:"data"`
 	}
 
-	verifyDataResponse, ok := verifyResponse["data"].(map[string]interface{})
-	if !ok {
-		log.Fatal("Invalid Verify response format")
+	if err := json.Unmarshal([]byte(body), &verifyResponseDto); err != nil {
+		log.Fatalf("Error parsing Signin response: %v", err)
 	}
 
-	return verifyDataResponse["nfsUrl"].(string), nil
+	nfsUrl := verifyResponseDto.Data.NfsUrl
+
+	return nfsUrl, nil
 }
 
 func mountNfs(nfsUrl string) error {
@@ -188,39 +210,56 @@ func readDatasInFolder() error {
 	return nil
 }
 
+func generateRandomSecretKey(seed int64) ([]byte, error) {
+	randSource := mrand.NewSource(seed)
+	randInstance := mrand.New(randSource)
+	randomSecretKey := make([]byte, 32)
+
+	for i := 0; i < len(randomSecretKey); i++ {
+		randomSecretKey[i] = byte(randInstance.Intn(256))
+	}
+
+	return randomSecretKey, nil
+}
+
 func main() {
 	loadEnv()
 
-	seed, key, err := getSeed()
+	seed, err := generateSeed()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Seed : %s, Key : %s\n", seed, key)
+	key, err := generateRandomSecretKey(seed)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// nfsUrl, err := getNfsUrl(accessToken)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	totp, err := generateOTP(seed, key)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// fmt.Printf("NFS URL: %s\n", nfsUrl)
+	fmt.Println("TOTP :", totp)
 
-	// err = mountNfs(nfsUrl)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	nfsUrl, err := getNfsUrl(totp)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("NFS URL :", nfsUrl)
 
 	// err = decryptFilesInFolder(key)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// }
 
-	fmt.Println("NFS mounted successfully!")
+	// fmt.Println("NFS mounted successfully!")
 
-	err = readDatasInFolder()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// err = readDatasInFolder()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	fmt.Println("Read Data successfully!")
+	// fmt.Println("Read Data successfully!")
 }
