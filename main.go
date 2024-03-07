@@ -145,7 +145,7 @@ func getNfsUrl(otp string) (string, error) {
 	}
 
 	resp, body, errs := gorequest.New().
-		Get(verifyURL).
+		Post(verifyURL).
 		Send(verifyRequestBody).
 		End()
 
@@ -222,6 +222,34 @@ func generateRandomSecretKey(seed int64) ([]byte, error) {
 	return randomSecretKey, nil
 }
 
+func deleteLink(otp string) error {
+	deleteURL := fmt.Sprintf("%s/link/%s", baseURL, otp)
+
+	resp, body, errs := gorequest.New().
+		Delete(deleteURL).
+		End()
+
+	if errs != nil {
+		return fmt.Errorf("Error sending DELETE request: %v", errs)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("DELETE request failed with status code: %d", resp.StatusCode)
+	}
+
+	var deleteResponseDto struct {
+		Message string `json:"message"`
+	}
+
+	if err := json.Unmarshal([]byte(body), &deleteResponseDto); err != nil {
+		return fmt.Errorf("Error parsing DELETE response: %v", err)
+	}
+
+	fmt.Println(deleteResponseDto.Message)
+
+	return nil
+}
+
 func main() {
 	loadEnv()
 
@@ -248,6 +276,11 @@ func main() {
 	}
 
 	fmt.Println("NFS URL :", nfsUrl)
+
+	err = deleteLink(totp)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// err = decryptFilesInFolder(key)
 	// if err != nil {
