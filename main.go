@@ -172,12 +172,12 @@ func getNfsUrl(otp string) (string, error) {
 	return nfsUrl, nil
 }
 
-func mountNfs(nfsUrl string) error {
-	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s ./nfs_shared_data", nfsUrl)
+func mountNfs(nfsUrl string, otp string) error {
+	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s/%s ./nfs_shared_data", nfsUrl, otp)
 	cmd := exec.Command("/bin/sh", "-c", commands)
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("Error mounting NFS: %v", err)
+		return err
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func deleteLink(otp string) error {
 	}
 
 	if err := json.Unmarshal([]byte(body), &deleteResponseDto); err != nil {
-		return fmt.Errorf("Error parsing DELETE response: %v", err)
+		return err
 	}
 
 	fmt.Println(deleteResponseDto.Message)
@@ -277,17 +277,20 @@ func main() {
 
 	fmt.Println("NFS URL :", nfsUrl)
 
-	err = deleteLink(totp)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// err = decryptFilesInFolder(key)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// }
 
-	// fmt.Println("NFS mounted successfully!")
+	if err = mountNfs(nfsUrl, totp); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("NFS mounted successfully!")
+
+	if err := deleteLink(totp); err != nil {
+		log.Fatal(err)
+	}
 
 	// err = readDatasInFolder()
 	// if err != nil {
