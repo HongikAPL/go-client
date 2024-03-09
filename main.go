@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
 	"github.com/parnurzeal/gorequest"
 	"github.com/pquerna/otp/totp"
 )
 
 const (
-	baseURL = "http://localhost:8080/api/auth"
+	baseURL = "http://15.164.217.15:8080/api/auth"
 )
 
 func loadEnv() {
@@ -292,6 +293,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	e := echo.New()
+	e.Logger.Fatal(e.Start(":8080"))
 	// err = readDatasInFolder()
 	// if err != nil {
 	// 	log.Fatal(err)
