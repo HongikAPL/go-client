@@ -21,7 +21,7 @@ import (
 
 const (
 	baseURL    = "http://15.164.217.15:8080/api/auth"
-	folderPath = "./nfs_shared_path"
+	folderPath = "./nfs_shared_data"
 )
 
 func loadEnv() {
