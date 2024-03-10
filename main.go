@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	baseURL    = "http://3.34.52.176:8080/api/auth"
-	folderPath = "./nfs_shared_data"
+	baseURL       = "http://3.34.52.176:8080/api/auth"
+	folderPath    = "./nfs_shared_data"
+	newFolderPath = "./data"
 )
 
 func loadEnv() {
@@ -129,35 +130,17 @@ func decryptFilesInFolder(key []byte) error {
 			return err
 		}
 
-		tempFilePath := filePath + ".tmp"
-		tempFile, err := os.Create(tempFilePath)
-		if err != nil {
-			return err
-		}
-		defer tempFile.Close()
-
-		_, err = tempFile.Write(decryptedData)
-		if err != nil {
+		if err := os.MkdirAll(newFolderPath, os.ModePerm); err != nil {
 			return err
 		}
 
-		fmt.Println("success write decryptedData")
+		newFilePath := filepath.Join(newFolderPath, file.Name())
 
-		err = tempFile.Chmod(0644)
-		if err != nil {
+		if err := ioutil.WriteFile(newFilePath, decryptedData, 0644); err != nil {
 			return err
 		}
 
-		fmt.Println("success change mode")
-
-		err = os.Remove(filePath)
-		if err != nil {
-			return err
-		}
-		err = os.Rename(tempFilePath, filePath)
-		if err != nil {
-			return err
-		}
+		fmt.Println("Success writing decrypted data to", newFilePath)
 	}
 
 	return nil
@@ -215,13 +198,13 @@ func mountNfs(nfsUrl string, otp string) error {
 }
 
 func readDatasInFolder() error {
-	files, err := ioutil.ReadDir(folderPath)
+	files, err := ioutil.ReadDir(newFolderPath)
 	if err != nil {
 		return err
 	}
 
 	for _, file := range files {
-		filePath := filepath.Join(folderPath, file.Name())
+		filePath := filepath.Join(newFolderPath, file.Name())
 		data, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			log.Println("Error reading file", filePath, err)
