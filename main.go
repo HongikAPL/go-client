@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	baseURL    = "http://15.164.217.15:8080/api/auth"
+	baseURL    = "http://3.34.52.176:8080/api/auth"
 	folderPath = "./nfs_shared_data"
 )
 
