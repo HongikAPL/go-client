@@ -129,7 +129,32 @@ func decryptFilesInFolder(key []byte) error {
 			return err
 		}
 
-		err = ioutil.WriteFile(filePath, decryptedData, os.ModePerm)
+		tempFilePath := filePath + ".tmp"
+		tempFile, err := os.Create(tempFilePath)
+		if err != nil {
+			return err
+		}
+		defer tempFile.Close()
+
+		_, err = tempFile.Write(decryptedData)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("success write decryptedData")
+
+		err = tempFile.Chmod(0644)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("success change mode")
+
+		err = os.Remove(filePath)
+		if err != nil {
+			return err
+		}
+		err = os.Rename(tempFilePath, filePath)
 		if err != nil {
 			return err
 		}
