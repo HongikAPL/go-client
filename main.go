@@ -174,11 +174,17 @@ func getNfsUrl(otp string) (string, error) {
 
 func mountNfs(nfsUrl string, otp string) error {
 	nfsPath := nfsUrl + "/" + otp
-	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s %s", nfsPath, folderPath)
-	cmd := exec.Command("/bin/sh", "-c", commands)
-	err := cmd.Run()
-	if err != nil {
-		return err
+	commands := []string{
+		"apt-get update",
+		"apt-get install -y nfs-common",
+		"mkdir -p nfs_shared_data",
+		fmt.Sprintf("mount %s %s", nfsPath, folderPath),
+	}
+	for _, cmd := range commands {
+		err := exec.Command("/bin/sh", "-c", cmd).Run()
+		if err != nil {
+			return fmt.Errorf("failed to execute command %s: %s", cmd, err)
+		}
 	}
 	return nil
 }
@@ -273,7 +279,6 @@ func main() {
 	fmt.Println("NFS URL :", nfsUrl)
 
 	if err = mountNfs(nfsUrl, totp); err != nil {
-		fmt.Println(err)
 		log.Fatal(err)
 	}
 
