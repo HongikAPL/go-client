@@ -273,6 +273,7 @@ func main() {
 	fmt.Println("NFS URL :", nfsUrl)
 
 	if err = mountNfs(nfsUrl, totp); err != nil {
+		fmt.Println(err)
 		log.Fatal(err)
 	}
 
