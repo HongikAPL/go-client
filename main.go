@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/labstack/echo/v4"
 	"github.com/parnurzeal/gorequest"
 	"github.com/pquerna/otp/totp"
 )
 
 const (
-	baseURL = "http://15.164.217.15:8080/api/auth"
+	baseURL    = "http://15.164.217.15:8080/api/auth"
+	folderPath = "./nfs_shared_path"
 )
 
 func loadEnv() {
@@ -112,7 +112,6 @@ func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 }
 
 func decryptFilesInFolder(key []byte) error {
-	folderPath := "test"
 	files, err := ioutil.ReadDir(folderPath)
 	if err != nil {
 		return err
@@ -174,7 +173,8 @@ func getNfsUrl(otp string) (string, error) {
 }
 
 func mountNfs(nfsUrl string, otp string) error {
-	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s/%s ./nfs_shared_data", nfsUrl, otp)
+	nfsPath := nfsUrl + "/" + otp
+	commands := fmt.Sprintf("apt-get update && apt-get install -y nfs-common && mkdir nfs_shared_data && mount %s %s", nfsPath, folderPath)
 	cmd := exec.Command("/bin/sh", "-c", commands)
 	err := cmd.Run()
 	if err != nil {
@@ -184,12 +184,6 @@ func mountNfs(nfsUrl string, otp string) error {
 }
 
 func readDatasInFolder() error {
-	currentPath, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	folderPath := filepath.Join(currentPath, "nfs_shared_data")
 	files, err := ioutil.ReadDir(folderPath)
 	if err != nil {
 		return err
@@ -278,27 +272,23 @@ func main() {
 
 	fmt.Println("NFS URL :", nfsUrl)
 
-	// err = decryptFilesInFolder(key)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
 	if err = mountNfs(nfsUrl, totp); err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println("NFS mounted successfully!")
 
-	if err := deleteLink(totp); err != nil {
+	if err = decryptFilesInFolder(key); err != nil {
 		log.Fatal(err)
 	}
 
-	e := echo.New()
-	e.Logger.Fatal(e.Start(":8080"))
-	// err = readDatasInFolder()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	if err = readDatasInFolder(); err != nil {
+		log.Fatal(err)
+	}
 
-	// fmt.Println("Read Data successfully!")
+	fmt.Println("Read Data successfully!")
+
+	if err := deleteLink(totp); err != nil {
+		log.Fatal(err)
+	}
 }
